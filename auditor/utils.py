@@ -11,6 +11,30 @@ from .config import ERROR_VALUES, PLACEHOLDERS
 _WS_RE = re.compile(r"\s+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
+# Unicode "Cf" (Format) characters are invisible in Excel but are still real
+# characters in the string: zero-width space/joiners (U+200B-200D, U+2060),
+# the UTF-8 BOM (U+FEFF), soft hyphen (U+00AD), left/right-to-left marks
+# (U+200E/200F) and variation selectors are all in this category. A value
+# copied from Word, a PDF, or an export tool commonly carries one of these
+# even though it looks identical to a clean value in the cell. Checking the
+# Unicode category catches all of them, current and future, instead of
+# hard-coding one or two codepoints and missing the rest.
+
+
+_ZERO_WIDTH_SPACE = "​"
+
+
+def _strip_format_chars(text: str) -> str:
+    if not text:
+        return text
+    # A zero-width space marks a word-break point, so treat it as a space —
+    # "Word​Word" must still separate into two words. Every other
+    # invisible "format" character (BOM, soft hyphen, word joiner, ZWNJ/ZWJ,
+    # bidi marks, variation selectors, ...) carries no space meaning and is
+    # simply dropped.
+    text = text.replace(_ZERO_WIDTH_SPACE, " ")
+    return "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+
 
 def cell_text(value) -> str:
     """Turn any cell value into a clean, trimmed string.
@@ -34,13 +58,37 @@ def cell_text(value) -> str:
         return str(value)
     text = str(value)
     text = unicodedata.normalize("NFKC", text)
-    text = text.replace("\xa0", " ").replace("​", "")
+    text = _strip_format_chars(text)
+    # Python's \s already matches every Unicode space separator (Zs), which
+    # covers the non-breaking space (U+00A0) and its relatives, so this one
+    # substitution handles "normal" spaces, non-breaking spaces, and any run
+    # of mixed whitespace in a single pass.
     return _WS_RE.sub(" ", text).strip()
 
 
-def norm_key(value) -> str:
-    """Comparison key: trimmed, single-spaced, lower-case."""
+def normalize_for_matching(value) -> str:
+    """The single, reusable normalization used for every cross-sheet match
+    (Supplier, Office, Asset Category, Asset Category Code, Condition, ...).
+
+    Steps:
+        1. Convert the value to a string.
+        2. Strip invisible Unicode formatting characters (zero-width spaces,
+           BOM, soft hyphen, bidi marks) that are invisible in Excel.
+        3. Trim leading/trailing whitespace, including non-breaking and other
+           Unicode space characters.
+        4. Collapse internal whitespace runs to a single space.
+        5. Case-fold, so comparison is case-insensitive.
+
+    Two values are considered "the same reference value" when this function
+    returns the same result for both — nothing else. The original, exact
+    text of the reference sheet is always kept and shown as the correct
+    value; this function is only ever used as a comparison key.
+    """
     return cell_text(value).casefold()
+
+
+# Backward-compatible alias: the rest of the codebase calls this "norm_key".
+norm_key = normalize_for_matching
 
 
 def reduce_name(value) -> str:

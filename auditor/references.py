@@ -14,6 +14,33 @@ from .models import Issue, ReferenceList
 from .utils import cell_text, is_blank, is_placeholder, norm_key, reduce_name
 
 
+def _add_short_form_aliases(reference: ReferenceList) -> None:
+    """Let a short form entered in the Asset register match a reference value
+    that carries a parenthetical explanation.
+
+    Several reference sheets (Condition | Disposal Reason, and sometimes
+    Asset | GPE Category) write the valid option as a long descriptive
+    string, e.g. "Good (No visible damage, no repairs completed)". A value
+    such as "Good" is the same option, just written without the explanation,
+    and must not be reported as invalid.
+
+    The alias is derived from the reference sheet's own text — the part
+    before the first "(" — so it is never a hard-coded list of expected
+    values, and it automatically follows whatever wording the reference
+    sheet actually uses. A canonical (full-text) entry always takes priority:
+    this only fills in a key that no real entry already occupies, so it can
+    never hide or overwrite a genuine reference value.
+    """
+    for text in list(reference.values):
+        if "(" not in text:
+            continue
+        short = text.split("(", 1)[0].strip()
+        if not short:
+            continue
+        short_key = norm_key(short)
+        reference.normalized.setdefault(short_key, text)
+
+
 def _collect(sheet, label, ref_key, ref_label, section, issues):
     """Read one column of a reference sheet into a ReferenceList.
 
@@ -71,6 +98,7 @@ def _collect(sheet, label, ref_key, ref_label, section, issues):
             values=sorted({v for _, v in duplicates}),
             rows=[r for r, _ in duplicates],
         ))
+    _add_short_form_aliases(reference)
     return reference
 
 
@@ -191,6 +219,10 @@ def build_category_reference(workbook, issues):
             codes.exact.add(code)
             codes.normalized[code_k] = code
         pairs.setdefault(name_k, code_k)
+        if "(" in name:                        # short-form alias, e.g. "Vehicles"
+            short_key = norm_key(name.split("(", 1)[0])
+            if short_key:
+                pairs.setdefault(short_key, code_k)
 
     if blanks:
         issues.append(Issue(
@@ -205,6 +237,8 @@ def build_category_reference(workbook, issues):
             sheet=sheet.name, column=code_label,
             count=len(duplicate_codes), values=sorted(set(duplicate_codes)),
         ))
+    _add_short_form_aliases(names)
+    _add_short_form_aliases(codes)
     return names, codes, pairs
 
 
@@ -305,6 +339,7 @@ def build_condition_reference(workbook, issues):
                 values=sorted({v for _, v in duplicates}),
                 rows=[r for r, _ in duplicates],
             ))
+        _add_short_form_aliases(reference)
         results[role] = reference
 
     if not results["condition"].values:

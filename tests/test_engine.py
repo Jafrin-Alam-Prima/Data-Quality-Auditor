@@ -31,7 +31,9 @@ CATEGORIES = [
 ]
 CONDITIONS = ["New (Purchased within the last 12 months)",
               "Good (No visible damage, no repairs completed)",
-              "Fair (Reasonable condition showing signs of wear and tear)"]
+              "Fair (Reasonable condition showing signs of wear and tear)",
+              "Poor (Damaged, old but still have a limited use)",
+              "BER (Beyond Economic Repair)"]
 DISPOSALS = ["Donation", "Sale", "Write Off"]
 OFFICE_TYPES = ["Country Office", "Field Office"]
 
@@ -278,6 +280,122 @@ def test_feedback_shape():
     expect("csv export works", b"Section" in to_findings_csv(run(rows)))
 
 
+def test_normalization_handles_invisible_characters():
+    """Reproduces the reported bug: a supplier that exists in the reference
+    sheet was reported as missing because of hidden Unicode characters that
+    look identical to a clean value in Excel."""
+    from auditor.utils import normalize_for_matching
+
+    variants = [
+        "Capital Computer",
+        " Capital Computer",
+        "Capital Computer ",
+        "Capital  Computer",                    # double space
+        "CAPITAL COMPUTER",
+        "Capital Computer",                # non-breaking space as the separator
+        "Capital ​Computer",               # zero-width space next to a real space
+        "﻿Capital Computer",                # UTF-8 BOM at the very start
+        "Capital Computer⁠",               # trailing word joiner
+        "Capital Computer‌",               # trailing zero-width non-joiner
+        "Capital Computer‎",               # trailing left-to-right mark
+        "Capital­ Computer",               # soft hyphen next to a real space
+    ]
+    keys = {normalize_for_matching(v) for v in variants}
+    expect("all invisible-character variants normalize to the same key",
+           len(keys) == 1, str(keys))
+
+    rows = [GOOD_ROW]
+    for index, variant in enumerate(variants):
+        rows.append(["Laptop", f"ZMB-CMP-{index:04d}", CATEGORIES[2][0], "CMP",
+                     "ZMW", 10, 10, variant, "Lusaka", CONDITIONS[1]])
+    result = run(rows, suppliers=["Alpha Traders", "Capital Computer"])
+    found = codes(result)
+    expect("a supplier that exists, with only invisible/spacing differences, "
+           "is never reported as missing",
+           ("Supplier", "not_in_reference") not in found, str(found))
+
+
+def test_missing_vs_formatting_difference_are_distinct():
+    rows = [
+        GOOD_ROW,
+        # Genuinely missing: does not exist in the Supplier sheet at all.
+        ["Desk", "D1", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "ABC Company",
+         "Lusaka", CONDITIONS[1]],
+        # Same supplier, only a formatting difference.
+        ["Desk", "D2", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "capital  computer",
+         "Lusaka", CONDITIONS[1]],
+    ]
+    result = run(rows, suppliers=["Alpha Traders", "Capital Computer"])
+    missing = next((i for i in result.issues
+                    if i.section == "Supplier" and i.code == "not_in_reference"), None)
+    formatting = next((i for i in result.issues
+                       if i.section == "Supplier" and i.code == "case_mismatch"), None)
+
+    # Issue values are shown through cell_text (leading/trailing/double
+    # spaces cleaned up for display); the case difference is preserved, so
+    # match on that rather than on the raw double-spaced literal.
+    expect("a supplier not in the reference sheet at all is reported missing",
+           missing is not None and "ABC Company" in missing.values)
+    expect("a supplier that only differs in spacing/case is reported as a "
+           "formatting difference, not missing",
+           formatting is not None and "capital computer" in formatting.values)
+    if missing:
+        expect("the formatting-difference supplier is not also reported missing",
+               "capital computer" not in missing.values)
+    if formatting:
+        expect("the genuinely missing supplier is not also reported as a "
+               "formatting difference",
+               "ABC Company" not in formatting.values)
+
+
+def test_condition_short_form_is_recognised_as_valid():
+    """The Condition | Disposal Reason sheet stores long descriptive text
+    ("Good (No visible damage, no repairs completed)"). A register that
+    stores the short form ("Good") is using the same, valid option and must
+    not be reported as invalid — derived from the sheet's own wording, not a
+    hard-coded list."""
+    short_forms = ["New", "Good", "Fair", "Poor", "BER",
+                   "  good  ", "GOOD", "Good "]
+    rows = [GOOD_ROW]
+    for index, value in enumerate(short_forms):
+        rows.append(["Chair", f"ZMB-CMP-{index:04d}", CATEGORIES[2][0], "CMP",
+                     "ZMW", 10, 10, "Alpha Traders", "Lusaka", value])
+    result = run(rows)
+    found = codes(result)
+    expect("short-form condition values matching the reference sheet's own "
+           "wording are accepted as valid",
+           ("Asset | GPE Condition", "not_in_reference") not in found, str(found))
+
+    # A value that is not a valid option under any form must still be caught.
+    bad_row = ["Chair", "ZMB-CMP-9999", CATEGORIES[2][0], "CMP", "ZMW", 10, 10,
+              "Alpha Traders", "Lusaka", "Very good"]
+    result_bad = run([GOOD_ROW, bad_row])
+    expect("a genuinely invalid condition is still reported",
+           ("Asset | GPE Condition", "not_in_reference") in codes(result_bad))
+
+
+def test_category_short_form_and_code_mismatch_still_detected():
+    """A category entered in short form must still match its reference entry
+    and its category code must still be validated against it."""
+    rows = [
+        GOOD_ROW,
+        # Short form, correct code -> no problem.
+        ["Bike", "E1", "Motorbike and quad bikes", "MOT", "ZMW", 10, 10,
+         "Alpha Traders", "Lusaka", CONDITIONS[1]],
+        # Short form, wrong code -> must still be caught.
+        ["Bike", "E2", CATEGORIES[0][0].split("(")[0].strip(), "MOT", "ZMW", 10, 10,
+         "Alpha Traders", "Lusaka", CONDITIONS[1]],
+    ]
+    result = run(rows)
+    found = codes(result)
+    expect("a short-form category matching the reference sheet's wording is "
+           "not reported as unknown",
+           ("Asset Category", "not_in_reference") not in found, str(found))
+    expect("a code that does not belong to the (short-form) category is "
+           "still caught",
+           ("Asset Category Code", "code_category_mismatch") in found, str(found))
+
+
 def test_country_guessing():
     from auditor.utils import guess_country
     cases = [
@@ -294,7 +412,11 @@ if __name__ == "__main__":
     for test in [test_clean_workbook, test_asset_name_and_id, test_category_and_code,
                  test_item_values, test_supplier_office_condition, test_reference_sheets,
                  test_missing_sheet, test_condition_sheet_with_header,
-                 test_feedback_shape, test_country_guessing]:
+                 test_feedback_shape, test_country_guessing,
+                 test_normalization_handles_invisible_characters,
+                 test_missing_vs_formatting_difference_are_distinct,
+                 test_condition_short_form_is_recognised_as_valid,
+                 test_category_short_form_and_code_mismatch_still_detected]:
         print(f"\n{test.__name__}")
         test()
 

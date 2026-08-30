@@ -179,15 +179,26 @@ with st.expander("Sheets found in this workbook", expanded=False):
         "office_ref": "Office reference",
         "condition_ref": "Condition | Disposal Reason reference",
     }
-    rows = [
-        {
-            "Sheet": sheet["name"],
-            "Used as": role_labels.get(roles.get(sheet["name"], ""), "—"),
-            "Rows of data": sheet["rows"],
-        }
+    import html as _html
+
+    table_rows = "".join(
+        '<tr style="border-bottom:1px solid #f0f2f5">'
+        f'<td style="padding:.35rem .5rem">{_html.escape(sheet["name"])}</td>'
+        f'<td style="padding:.35rem .5rem">'
+        f'{_html.escape(role_labels.get(roles.get(sheet["name"], ""), "—"))}</td>'
+        f'<td style="padding:.35rem .5rem;text-align:right">{sheet["rows"]:,}</td></tr>'
         for sheet in result.sheet_overview
-    ]
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    )
+    st.markdown(
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;'
+        'font-size:.9rem">'
+        '<thead><tr style="text-align:left;border-bottom:1px solid #e3e7ec">'
+        '<th style="padding:.35rem .5rem">Sheet</th>'
+        '<th style="padding:.35rem .5rem">Used as</th>'
+        '<th style="padding:.35rem .5rem;text-align:right">Rows of data</th>'
+        f'</tr></thead><tbody>{table_rows}</tbody></table></div>',
+        unsafe_allow_html=True,
+    )
     if result.missing_sheets:
         st.warning("Reference sheets not found: " + ", ".join(result.missing_sheets))
 

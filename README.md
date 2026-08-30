@@ -94,6 +94,34 @@ suggesting an amount.
 
 ---
 
+## How values are matched against a reference sheet
+
+Every cross-sheet comparison (Supplier, Office, Asset Category, Asset Category
+Code, Asset | GPE Condition) goes through one reusable function,
+`normalize_for_matching()` in `auditor/utils.py`. Before two values are
+compared, both are: converted to a string, stripped of invisible Unicode
+characters (non-breaking spaces, zero-width spaces, a BOM, soft hyphens, bidi
+marks — the kind of character that looks identical in Excel but breaks an
+exact match), trimmed, collapsed to single spaces, and case-folded. The original
+value from the reference sheet is always the one shown as correct — this
+normalized form is only ever used as a comparison key, never displayed.
+
+A value is reported as **missing** only when it does not match a reference
+value even after normalization. When it *does* match, but the raw text
+differs (capitalization, spacing), it is reported separately as a
+**formatting / spelling difference** — never both.
+
+**Short forms of a reference value are also recognised.** Some reference
+sheets write the valid option with an explanation in parentheses, e.g.
+`Good (No visible damage, no repairs completed)` or
+`Appliance Expert (Pvt) Ltd`. A register that uses the short form (`Good`,
+`Appliance Expert`) is using the same, valid option and is not flagged. This
+alias is derived from the reference sheet's own text — the part before the
+first `(` — every time the audit runs, so it is never a hard-coded list and it
+always follows whatever wording the reference sheet actually uses.
+
+---
+
 ## Sheet detection
 
 Sheet names differ between country templates, so matching ignores case,
