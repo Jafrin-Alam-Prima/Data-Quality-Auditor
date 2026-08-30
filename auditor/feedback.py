@@ -95,7 +95,7 @@ def _section_body(section, issues, include_full_lists=False):
                        else f"Missing from this sheet (first {len(shown)}):")
             details.append({"heading": heading, "items": shown,
                             "more": len(issue.values) - len(shown)})
-        elif issue.code == "ref_type_invalid" and issue.note:
+        elif issue.code in ("ref_type_invalid", "not_in_reference") and issue.note:
             details.append({"heading": issue.note, "items": [], "more": 0})
 
     if not problems:

@@ -143,6 +143,13 @@ def check_in_reference(ctx):
         text = cell_text(value)
         if text in reference.exact:
             continue
+        if reference.case_sensitive:
+            # No case-insensitive fallback and no alias: the reference
+            # sheet's own capitalization is the required standard, so "NEW"
+            # or "new" do not count as the same value as "New".
+            missing_rows.append(row_number)
+            missing_values.append(text)
+            continue
         key = norm_key(text)
         if key in reference.normalized:
             spelling_rows.append(row_number)
@@ -156,10 +163,12 @@ def check_in_reference(ctx):
 
     issues = []
     if missing_rows:
+        note = (f"Valid options (capital letters must match exactly): "
+                f"{', '.join(reference.values)}") if reference.case_sensitive else ""
         issues.append(_issue(
             ctx, "not_in_reference",
             f"{ctx.column} values not found in {reference.label}",
-            missing_rows, missing_values,
+            missing_rows, missing_values, note=note,
         ))
     if spelling_rows:
         issues.append(_issue(

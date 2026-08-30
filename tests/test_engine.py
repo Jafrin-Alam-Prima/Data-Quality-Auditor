@@ -34,6 +34,10 @@ CONDITIONS = ["New (Purchased within the last 12 months)",
               "Fair (Reasonable condition showing signs of wear and tear)",
               "Poor (Damaged, old but still have a limited use)",
               "BER (Beyond Economic Repair)"]
+# The valid Asset | GPE Condition value is the exact text before the "(" in
+# each CONDITIONS entry above, case preserved. Use this (not CONDITIONS) for
+# any row that should have a VALID condition.
+CONDITIONS_SHORT = ["New", "Good", "Fair", "Poor", "BER"]
 DISPOSALS = ["Donation", "Sale", "Write Off"]
 OFFICE_TYPES = ["Country Office", "Field Office"]
 
@@ -96,7 +100,7 @@ def codes(result):
 
 
 GOOD_ROW = ["Toyota Hilux", "ZMB-VEH-0001", CATEGORIES[0][0], "VEH",
-            "ZMW", 37027, 1500, "Alpha Traders", "Lusaka", CONDITIONS[1]]
+            "ZMW", 37027, 1500, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]]
 
 PASSED, FAILED = [], []
 
@@ -110,7 +114,7 @@ def expect(name, condition, extra=""):
 
 def test_clean_workbook():
     result = run([GOOD_ROW, ["Laptop", "ZMB-CMP-0002", CATEGORIES[2][0], "CMP",
-                             "USD", 900, 900, "Beta Motors", "Kitwe", CONDITIONS[0]]])
+                             "USD", 900, 900, "Beta Motors", "Kitwe", CONDITIONS_SHORT[0]]])
     expect("clean workbook reports no issues", not result.has_issues,
            str([(i.section, i.code, i.values[:3]) for i in result.issues]))
     document = build_feedback(result)
@@ -121,13 +125,13 @@ def test_clean_workbook():
 def test_asset_name_and_id():
     rows = [
         GOOD_ROW,
-        ["", "ZMB-VEH-0002", CATEGORIES[0][0], "VEH", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["N/A", "ZMB-VEH-0003", CATEGORIES[0][0], "VEH", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Printer", "", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Printer", "TBA", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Printer", 0, CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Printer", "#REF!", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Scanner", "ZMB-VEH-0001", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
+        ["", "ZMB-VEH-0002", CATEGORIES[0][0], "VEH", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["N/A", "ZMB-VEH-0003", CATEGORIES[0][0], "VEH", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Printer", "", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Printer", "TBA", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Printer", 0, CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Printer", "#REF!", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Scanner", "ZMB-VEH-0001", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
     ]
     result = run(rows)
     found = codes(result)
@@ -150,10 +154,10 @@ def test_asset_name_and_id():
 def test_category_and_code():
     rows = [
         GOOD_ROW,
-        ["Bike", "A1", "Flying machines", "FLY", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Bike", "A2", CATEGORIES[1][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Bike", "A3", "motorbike and QUAD bikes", "mot", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Bike", "A4", "", "", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
+        ["Bike", "A1", "Flying machines", "FLY", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Bike", "A2", CATEGORIES[1][0], "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Bike", "A3", "motorbike and QUAD bikes", "mot", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Bike", "A4", "", "", "ZMW", 10, 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
     ]
     found = codes(run(rows))
     expect("unknown category found", ("Asset Category", "not_in_reference") in found)
@@ -169,11 +173,11 @@ def test_category_and_code():
 def test_item_values():
     rows = [
         GOOD_ROW,
-        ["Desk", "B1", CATEGORIES[2][0], "CMP", "ZMW", "OLD MATERIAL/UNKNOWN", 10, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Desk", "B2", CATEGORIES[2][0], "CMP", "ZMW", 0, 0, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Desk", "B3", CATEGORIES[2][0], "CMP", "ZMW", "", "", "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Desk", "B4", CATEGORIES[2][0], "CMP", "USD", 1000, 250, "Alpha Traders", "Lusaka", CONDITIONS[1]],
-        ["Desk", "B5", CATEGORIES[2][0], "CMP", "ZMW", "1,250.75", 55, "Alpha Traders", "Lusaka", CONDITIONS[1]],
+        ["Desk", "B1", CATEGORIES[2][0], "CMP", "ZMW", "OLD MATERIAL/UNKNOWN", 10, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Desk", "B2", CATEGORIES[2][0], "CMP", "ZMW", 0, 0, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Desk", "B3", CATEGORIES[2][0], "CMP", "ZMW", "", "", "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Desk", "B4", CATEGORIES[2][0], "CMP", "USD", 1000, 250, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Desk", "B5", CATEGORIES[2][0], "CMP", "ZMW", "1,250.75", 55, "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
     ]
     result = run(rows)
     found = codes(result)
@@ -194,8 +198,8 @@ def test_item_values():
 def test_supplier_office_condition():
     rows = [
         GOOD_ROW,
-        ["Desk", "C1", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Gamma Supplies", "Lusaka", CONDITIONS[1]],
-        ["Desk", "C2", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "alpha traders", "LUSAKA", CONDITIONS[1]],
+        ["Desk", "C1", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "Gamma Supplies", "Lusaka", CONDITIONS_SHORT[1]],
+        ["Desk", "C2", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "alpha traders", "LUSAKA", CONDITIONS_SHORT[1]],
         ["Desk", "C3", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "", "", ""],
         ["Desk", "C4", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "N/A", "Ndola", "Very good"],
         ["Desk", "C5", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, 0, 0, "N/A"],
@@ -307,7 +311,7 @@ def test_normalization_handles_invisible_characters():
     rows = [GOOD_ROW]
     for index, variant in enumerate(variants):
         rows.append(["Laptop", f"ZMB-CMP-{index:04d}", CATEGORIES[2][0], "CMP",
-                     "ZMW", 10, 10, variant, "Lusaka", CONDITIONS[1]])
+                     "ZMW", 10, 10, variant, "Lusaka", CONDITIONS_SHORT[1]])
     result = run(rows, suppliers=["Alpha Traders", "Capital Computer"])
     found = codes(result)
     expect("a supplier that exists, with only invisible/spacing differences, "
@@ -320,10 +324,10 @@ def test_missing_vs_formatting_difference_are_distinct():
         GOOD_ROW,
         # Genuinely missing: does not exist in the Supplier sheet at all.
         ["Desk", "D1", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "ABC Company",
-         "Lusaka", CONDITIONS[1]],
+         "Lusaka", CONDITIONS_SHORT[1]],
         # Same supplier, only a formatting difference.
         ["Desk", "D2", CATEGORIES[2][0], "CMP", "ZMW", 10, 10, "capital  computer",
-         "Lusaka", CONDITIONS[1]],
+         "Lusaka", CONDITIONS_SHORT[1]],
     ]
     result = run(rows, suppliers=["Alpha Traders", "Capital Computer"])
     missing = next((i for i in result.issues
@@ -348,52 +352,69 @@ def test_missing_vs_formatting_difference_are_distinct():
                "ABC Company" not in formatting.values)
 
 
-def test_condition_short_form_is_recognised_as_valid():
+def test_condition_short_form_is_extracted_and_matched_exactly():
     """The Condition | Disposal Reason sheet stores long descriptive text
-    ("Good (No visible damage, no repairs completed)"). A register that
-    stores the short form ("Good") is using the same, valid option and must
-    not be reported as invalid — derived from the sheet's own wording, not a
-    hard-coded list."""
-    short_forms = ["New", "Good", "Fair", "Poor", "BER",
-                   "  good  ", "GOOD", "Good "]
+    ("Good (No visible damage, no repairs completed)"). The valid value is
+    the text before the first "(" -- "Good" -- read fresh from the sheet,
+    not hard-coded. Matching against it is case-sensitive: only a value
+    that matches the reference sheet's own capitalization exactly is
+    valid."""
+    valid = ["New", "Good", "Fair", "Poor", "BER"]
+    invalid = ["new", "NEW", "GOOD", "good", "POOR", "poor", "ber", "Very good"]
+
     rows = [GOOD_ROW]
-    for index, value in enumerate(short_forms):
-        rows.append(["Chair", f"ZMB-CMP-{index:04d}", CATEGORIES[2][0], "CMP",
+    for index, value in enumerate(valid):
+        rows.append(["Chair", f"ZMB-VALID-{index:04d}", CATEGORIES[2][0], "CMP",
                      "ZMW", 10, 10, "Alpha Traders", "Lusaka", value])
     result = run(rows)
-    found = codes(result)
-    expect("short-form condition values matching the reference sheet's own "
-           "wording are accepted as valid",
-           ("Asset | GPE Condition", "not_in_reference") not in found, str(found))
-    expect("short-form condition values are accepted silently, not reported "
-           "as a spelling/formatting difference either — asking a team to "
-           "rewrite every row to the long descriptive text would be wrong "
-           "advice when the short form is itself an accepted value",
-           ("Asset | GPE Condition", "case_mismatch") not in found, str(found))
+    condition_issues = [i for i in result.issues if i.section == "Asset | GPE Condition"]
+    expect("every value matching the reference sheet's exact capitalization "
+           "is valid, with no findings at all",
+           condition_issues == [], str(condition_issues))
 
-    # A value that is not a valid option under any form must still be caught.
-    bad_row = ["Chair", "ZMB-CMP-9999", CATEGORIES[2][0], "CMP", "ZMW", 10, 10,
-              "Alpha Traders", "Lusaka", "Very good"]
-    result_bad = run([GOOD_ROW, bad_row])
-    expect("a genuinely invalid condition is still reported",
-           ("Asset | GPE Condition", "not_in_reference") in codes(result_bad))
+    for index, value in enumerate(invalid):
+        bad_rows = [GOOD_ROW, ["Chair", f"ZMB-INVALID-{index:04d}", CATEGORIES[2][0],
+                               "CMP", "ZMW", 10, 10, "Alpha Traders", "Lusaka", value]]
+        result_bad = run(bad_rows)
+        issue = next((i for i in result_bad.issues
+                     if i.section == "Asset | GPE Condition"
+                     and i.code == "not_in_reference"), None)
+        expect(f"{value!r} does not match the reference sheet's capitalization "
+               f"and is reported invalid",
+               issue is not None and value in issue.values, str(result_bad.issues))
+
+    # A value not derived from any reference row, under any capitalization,
+    # is caught the same way, with the valid options listed for the team.
+    result_bad = run([GOOD_ROW, ["Chair", "ZMB-9999", CATEGORIES[2][0], "CMP",
+                                 "ZMW", 10, 10, "Alpha Traders", "Lusaka", "Broken"]])
+    issue = next(i for i in result_bad.issues
+                if i.section == "Asset | GPE Condition" and i.code == "not_in_reference")
+    expect("the valid options are listed for the team, derived from the "
+           "sheet at run time (not a hard-coded string)",
+           all(option in issue.note for option in valid), issue.note)
 
 
-def test_whole_column_of_short_form_conditions_raises_no_issue():
-    """Reproduces a real production file where every single row used the
-    short form ("Poor", "Good", "NEW") and the long descriptive text was
-    never used anywhere. The column must be completely clean — not one
-    finding — because every value is a genuinely valid, accepted option."""
-    values = (["Poor"] * 5) + (["Good"] * 4) + (["NEW"] * 2) + ["poor"]
+def test_condition_mixed_valid_and_invalid_capitalization():
+    """Reproduces a real production file where the whole column used short
+    forms, but not always with the reference sheet's own capitalization:
+    "Poor" and "Good" (correct case) mixed with "NEW" and "poor" (wrong
+    case). Only the wrong-case entries should be reported."""
     rows = [GOOD_ROW]
+    values = (["Poor"] * 3) + (["Good"] * 2) + ["NEW", "poor"]
     for index, value in enumerate(values):
         rows.append(["Chair", f"ZMB-CMP-{index:04d}", CATEGORIES[2][0], "CMP",
                      "ZMW", 10, 10, "Alpha Traders", "Lusaka", value])
     result = run(rows)
-    condition_issues = [i for i in result.issues if i.section == "Asset | GPE Condition"]
-    expect("a column entirely written in the reference sheet's short form "
-           "raises no findings at all",
-           condition_issues == [], str(condition_issues))
+    issue = next((i for i in result.issues
+                 if i.section == "Asset | GPE Condition" and i.code == "not_in_reference"), None)
+    expect("wrong-case entries are reported",
+           issue is not None, "no issue was raised at all")
+    if issue:
+        expect("wrong-case entries (NEW, poor) are exactly what gets flagged",
+               set(issue.values) == {"NEW", "poor"}, str(issue.values))
+        expect("correctly capitalized entries (Poor, Good) are not flagged",
+               "Poor" not in issue.values and "Good" not in issue.values,
+               str(issue.values))
 
 
 def test_category_short_form_and_code_mismatch_still_detected():
@@ -403,10 +424,10 @@ def test_category_short_form_and_code_mismatch_still_detected():
         GOOD_ROW,
         # Short form, correct code -> no problem.
         ["Bike", "E1", "Motorbike and quad bikes", "MOT", "ZMW", 10, 10,
-         "Alpha Traders", "Lusaka", CONDITIONS[1]],
+         "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
         # Short form, wrong code -> must still be caught.
         ["Bike", "E2", CATEGORIES[0][0].split("(")[0].strip(), "MOT", "ZMW", 10, 10,
-         "Alpha Traders", "Lusaka", CONDITIONS[1]],
+         "Alpha Traders", "Lusaka", CONDITIONS_SHORT[1]],
     ]
     result = run(rows)
     found = codes(result)
@@ -437,9 +458,9 @@ if __name__ == "__main__":
                  test_feedback_shape, test_country_guessing,
                  test_normalization_handles_invisible_characters,
                  test_missing_vs_formatting_difference_are_distinct,
-                 test_condition_short_form_is_recognised_as_valid,
+                 test_condition_short_form_is_extracted_and_matched_exactly,
                  test_category_short_form_and_code_mismatch_still_detected,
-                 test_whole_column_of_short_form_conditions_raises_no_issue]:
+                 test_condition_mixed_valid_and_invalid_capitalization]:
         print(f"\n{test.__name__}")
         test()
 

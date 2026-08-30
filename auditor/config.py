@@ -535,7 +535,8 @@ FEEDBACK_TEXT = {
     },
     ("Asset | GPE Condition", "not_in_reference"): {
         "problem": "conditions that are not valid options ({examples})",
-        "actions": ["Replace {examples} with one of the conditions listed in the Condition | Disposal Reason sheet."],
+        "actions": ["Replace {examples} with the correct condition, matching the "
+                   "capital letters exactly as shown below."],
     },
     ("Asset | GPE Condition", "case_mismatch"): {
         "problem": "conditions written differently from the Condition | Disposal Reason sheet",

@@ -42,6 +42,12 @@ class ReferenceList:
     # differently".
     aliases: dict[str, str] = field(default_factory=dict)
     available: bool = True                       # False when the sheet is missing
+    # When True, a value must match an entry in `exact` exactly — same
+    # capitalization, no case-insensitive fallback and no short-form alias.
+    # Used for Asset | GPE Condition, where the reference sheet's own
+    # capitalization (e.g. "New", not "NEW" or "new") is the required
+    # standard, not just a formatting nicety.
+    case_sensitive: bool = False
 
     def match(self, key: str) -> str | None:
         """Return the canonical value for a normalised key, or None."""

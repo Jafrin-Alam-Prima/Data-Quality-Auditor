@@ -299,6 +299,56 @@ def _classify_condition_columns(grid):
     return roles, 0
 
 
+def _build_condition_values(sheet, index, first_row, section, issues):
+    """Build the valid Asset | GPE Condition list from the reference sheet.
+
+    The sheet stores each option as a description, e.g.
+    "New (Purchased within the last 12 months)". The valid condition value
+    is the text before the first "(", with the surrounding spaces removed —
+    "New". This is read fresh from the sheet every run, never hard-coded, so
+    it always follows whatever the reference sheet actually contains.
+
+    Matching against this list is exact and case-sensitive (see
+    ReferenceList.case_sensitive): the reference sheet's own capitalization
+    is the required standard, so "NEW" or "new" are not treated as the same
+    value as "New".
+    """
+    label = "the Condition | Disposal Reason sheet"
+    reference = ReferenceList(key="condition", label=label, sheet_name=sheet.name,
+                              case_sensitive=True)
+
+    duplicates = []
+    seen_full: dict[str, int] = {}
+    for offset, row in enumerate(sheet.grid[first_row:], start=first_row + 1):
+        raw = row[index] if index < len(row) else None
+        full_text = cell_text(raw)
+        if not full_text:
+            continue
+
+        full_key = norm_key(full_text)             # duplicate check on the
+        if full_key in seen_full:                   # sheet's own full row text
+            duplicates.append((offset, full_text))
+            continue
+        seen_full[full_key] = offset
+
+        short = full_text.split("(", 1)[0] if "(" in full_text else full_text
+        short = cell_text(short)                    # trim the extracted value
+        if not short or short in reference.exact:
+            continue
+        reference.values.append(short)
+        reference.exact.add(short)
+
+    if duplicates:
+        issues.append(Issue(
+            section=section, code="ref_duplicate",
+            title="Repeated condition options",
+            sheet=sheet.name, count=len(duplicates),
+            values=sorted({v for _, v in duplicates}),
+            rows=[r for r, _ in duplicates],
+        ))
+    return reference
+
+
 def build_condition_reference(workbook, issues):
     """Return (conditions, disposal_reasons, office_types)."""
     sheet = workbook.get("condition_ref")
@@ -314,9 +364,14 @@ def build_condition_reference(workbook, issues):
     roles, first_row = _classify_condition_columns(sheet.grid)
     results = {}
 
-    for role, key in (("condition", "condition"),
-                      ("disposal", "disposal"),
-                      ("office_type", "office_type")):
+    condition_index = roles.get("condition")
+    if condition_index is None:
+        results["condition"] = empty("condition")
+    else:
+        results["condition"] = _build_condition_values(
+            sheet, condition_index, first_row, section, issues)
+
+    for role, key in (("disposal", "disposal"), ("office_type", "office_type")):
         reference = ReferenceList(key=key, label=label, sheet_name=sheet.name)
         index = roles.get(role)
         if index is None:
@@ -338,14 +393,6 @@ def build_condition_reference(workbook, issues):
             reference.exact.add(text)
             reference.normalized[normalized] = text
 
-        if duplicates and role == "condition":
-            issues.append(Issue(
-                section=section, code="ref_duplicate",
-                title="Repeated condition options",
-                sheet=sheet.name, count=len(duplicates),
-                values=sorted({v for _, v in duplicates}),
-                rows=[r for r, _ in duplicates],
-            ))
         _add_short_form_aliases(reference)
         results[role] = reference
 
