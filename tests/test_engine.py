@@ -365,6 +365,11 @@ def test_condition_short_form_is_recognised_as_valid():
     expect("short-form condition values matching the reference sheet's own "
            "wording are accepted as valid",
            ("Asset | GPE Condition", "not_in_reference") not in found, str(found))
+    expect("short-form condition values are accepted silently, not reported "
+           "as a spelling/formatting difference either — asking a team to "
+           "rewrite every row to the long descriptive text would be wrong "
+           "advice when the short form is itself an accepted value",
+           ("Asset | GPE Condition", "case_mismatch") not in found, str(found))
 
     # A value that is not a valid option under any form must still be caught.
     bad_row = ["Chair", "ZMB-CMP-9999", CATEGORIES[2][0], "CMP", "ZMW", 10, 10,
@@ -372,6 +377,23 @@ def test_condition_short_form_is_recognised_as_valid():
     result_bad = run([GOOD_ROW, bad_row])
     expect("a genuinely invalid condition is still reported",
            ("Asset | GPE Condition", "not_in_reference") in codes(result_bad))
+
+
+def test_whole_column_of_short_form_conditions_raises_no_issue():
+    """Reproduces a real production file where every single row used the
+    short form ("Poor", "Good", "NEW") and the long descriptive text was
+    never used anywhere. The column must be completely clean — not one
+    finding — because every value is a genuinely valid, accepted option."""
+    values = (["Poor"] * 5) + (["Good"] * 4) + (["NEW"] * 2) + ["poor"]
+    rows = [GOOD_ROW]
+    for index, value in enumerate(values):
+        rows.append(["Chair", f"ZMB-CMP-{index:04d}", CATEGORIES[2][0], "CMP",
+                     "ZMW", 10, 10, "Alpha Traders", "Lusaka", value])
+    result = run(rows)
+    condition_issues = [i for i in result.issues if i.section == "Asset | GPE Condition"]
+    expect("a column entirely written in the reference sheet's short form "
+           "raises no findings at all",
+           condition_issues == [], str(condition_issues))
 
 
 def test_category_short_form_and_code_mismatch_still_detected():
@@ -416,7 +438,8 @@ if __name__ == "__main__":
                  test_normalization_handles_invisible_characters,
                  test_missing_vs_formatting_difference_are_distinct,
                  test_condition_short_form_is_recognised_as_valid,
-                 test_category_short_form_and_code_mismatch_still_detected]:
+                 test_category_short_form_and_code_mismatch_still_detected,
+                 test_whole_column_of_short_form_conditions_raises_no_issue]:
         print(f"\n{test.__name__}")
         test()
 

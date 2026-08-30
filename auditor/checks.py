@@ -143,9 +143,13 @@ def check_in_reference(ctx):
         text = cell_text(value)
         if text in reference.exact:
             continue
-        if norm_key(text) in reference.normalized:
+        key = norm_key(text)
+        if key in reference.normalized:
             spelling_rows.append(row_number)
             spelling_values.append(text)
+        elif key in reference.aliases:
+            continue          # an accepted short form, e.g. "Good" for
+                               # "Good (No visible damage, no repairs completed)"
         else:
             missing_rows.append(row_number)
             missing_values.append(text)
@@ -184,7 +188,7 @@ def check_code_matches_category(ctx):
         if is_blank(category) or is_blank(code):
             continue
         category_key, code_key = norm_key(category), norm_key(code)
-        if category_key not in names.normalized or code_key not in codes.normalized:
+        if not names.contains(category_key) or not codes.contains(code_key):
             continue          # already reported by check_in_reference
         expected = pairs.get(category_key)
         if expected and expected != code_key:

@@ -34,11 +34,22 @@ class ReferenceList:
     values: list[str] = field(default_factory=list)          # canonical values
     exact: set[str] = field(default_factory=set)             # for exact matching
     normalized: dict[str, str] = field(default_factory=dict) # lower-case -> canonical
+    # Short forms of a canonical value that carries a parenthetical
+    # explanation, e.g. "good" -> "Good (No visible damage, no repairs
+    # completed)". Kept separate from `normalized` because a match here is a
+    # genuinely different (shorter) string, not a formatting variant of the
+    # same text — it is accepted silently, never reported as "spelled
+    # differently".
+    aliases: dict[str, str] = field(default_factory=dict)
     available: bool = True                       # False when the sheet is missing
 
     def match(self, key: str) -> str | None:
         """Return the canonical value for a normalised key, or None."""
-        return self.normalized.get(key)
+        return self.normalized.get(key) or self.aliases.get(key)
+
+    def contains(self, key: str) -> bool:
+        """True when `key` matches this reference exactly or as a short form."""
+        return key in self.normalized or key in self.aliases
 
 
 @dataclass

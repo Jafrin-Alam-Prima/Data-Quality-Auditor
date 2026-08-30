@@ -30,6 +30,11 @@ def _add_short_form_aliases(reference: ReferenceList) -> None:
     sheet actually uses. A canonical (full-text) entry always takes priority:
     this only fills in a key that no real entry already occupies, so it can
     never hide or overwrite a genuine reference value.
+
+    A short form is a genuinely different (shorter) string, not a formatting
+    variant of the same text, so it is recorded in `aliases`, not
+    `normalized`: matching it is accepted silently, and is never reported as
+    "spelled differently" the way "HARARE" vs "Harare" would be.
     """
     for text in list(reference.values):
         if "(" not in text:
@@ -38,7 +43,9 @@ def _add_short_form_aliases(reference: ReferenceList) -> None:
         if not short:
             continue
         short_key = norm_key(short)
-        reference.normalized.setdefault(short_key, text)
+        if short_key in reference.normalized:
+            continue                              # a real entry already owns this key
+        reference.aliases.setdefault(short_key, text)
 
 
 def _collect(sheet, label, ref_key, ref_label, section, issues):
@@ -142,7 +149,7 @@ def build_office_reference(workbook, issues, office_types=None):
                 blanks.append(row_number)
                 continue
             if office_types and office_types.values:
-                if norm_key(raw) not in office_types.normalized:
+                if not office_types.contains(norm_key(raw)):
                     invalid.append((row_number, cell_text(raw)))
         if blanks:
             issues.append(Issue(
