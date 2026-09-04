@@ -17,7 +17,8 @@ class Issue:
     count: int = 0               # how many cells / rows are affected
     values: list[str] = field(default_factory=list)   # distinct offending values
     rows: list[int] = field(default_factory=list)     # Excel row numbers
-    note: str = ""               # extra context for the results screen only
+    note: str = ""               # extra context heading for the feedback/results screen
+    note_items: list[str] = field(default_factory=list)  # bulleted list shown under `note`
 
     @property
     def examples(self) -> list[str]:

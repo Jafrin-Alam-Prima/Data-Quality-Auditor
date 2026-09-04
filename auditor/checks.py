@@ -43,14 +43,14 @@ class FieldContext:
                 yield row_number, value
 
 
-def _issue(ctx, code, title, rows, values=(), note=""):
+def _issue(ctx, code, title, rows, values=(), note="", note_items=()):
     ctx.handled.update(rows)
     return Issue(
         section=ctx.section, code=code, title=title,
         sheet=ctx.sheet.name, column=ctx.column,
         count=len(rows), rows=list(rows),
         values=sorted({cell_text(v) for v in values if cell_text(v)}),
-        note=note,
+        note=note, note_items=list(note_items),
     )
 
 
@@ -163,12 +163,14 @@ def check_in_reference(ctx):
 
     issues = []
     if missing_rows:
-        note = (f"Valid options (capital letters must match exactly): "
-                f"{', '.join(reference.values)}") if reference.case_sensitive else ""
+        note, note_items = "", []
+        if reference.case_sensitive:
+            note = "Valid options — select one from the dropdown exactly as shown:"
+            note_items = reference.values
         issues.append(_issue(
             ctx, "not_in_reference",
             f"{ctx.column} values not found in {reference.label}",
-            missing_rows, missing_values, note=note,
+            missing_rows, missing_values, note=note, note_items=note_items,
         ))
     if spelling_rows:
         issues.append(_issue(

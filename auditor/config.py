@@ -534,9 +534,15 @@ FEEDBACK_TEXT = {
         "actions": ["Replace the error values with a valid condition from the Condition | Disposal Reason sheet."],
     },
     ("Asset | GPE Condition", "not_in_reference"): {
-        "problem": "conditions that are not valid options ({examples})",
-        "actions": ["Replace {examples} with the correct condition, matching the "
-                   "capital letters exactly as shown below."],
+        "problem": "conditions that do not exactly match one of the dropdown "
+                   "options ({examples}) — these look like they were typed in "
+                   "by hand instead of selected from the dropdown",
+        "actions": [
+            "Please select the Asset | GPE Condition from the dropdown list in "
+            "that cell. Do not type the condition in manually.",
+            "The value must match one of the options exactly, including capital "
+            "letters and the text in brackets, as listed below.",
+        ],
     },
     ("Asset | GPE Condition", "case_mismatch"): {
         "problem": "conditions written differently from the Condition | Disposal Reason sheet",

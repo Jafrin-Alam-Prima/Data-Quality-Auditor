@@ -302,41 +302,42 @@ def _classify_condition_columns(grid):
 def _build_condition_values(sheet, index, first_row, section, issues):
     """Build the valid Asset | GPE Condition list from the reference sheet.
 
-    The sheet stores each option as a description, e.g.
-    "New (Purchased within the last 12 months)". The valid condition value
-    is the text before the first "(", with the surrounding spaces removed —
-    "New". This is read fresh from the sheet every run, never hard-coded, so
-    it always follows whatever the reference sheet actually contains.
+    Asset | GPE Condition must be selected from the Excel dropdown built
+    from this column, not typed in by hand (see the Instructions sheet).
+    Selecting from a dropdown reproduces the option's full text exactly, so
+    the valid value is each row's full text as written here — e.g.
+    "Good (No visible damage, no repairs completed)" — not just the word
+    before the bracket. This is read fresh from the sheet every run, never
+    hard-coded, so it always follows whatever the reference sheet actually
+    contains, in the order the sheet lists it.
 
     Matching against this list is exact and case-sensitive (see
-    ReferenceList.case_sensitive): the reference sheet's own capitalization
-    is the required standard, so "NEW" or "new" are not treated as the same
-    value as "New".
+    ReferenceList.case_sensitive): a real dropdown selection always matches
+    the option exactly, so any difference — including capitalization —
+    means the cell was typed in rather than selected, and should be
+    corrected by picking the option from the dropdown instead.
     """
     label = "the Condition | Disposal Reason sheet"
     reference = ReferenceList(key="condition", label=label, sheet_name=sheet.name,
                               case_sensitive=True)
 
     duplicates = []
-    seen_full: dict[str, int] = {}
+    seen: dict[str, int] = {}
     for offset, row in enumerate(sheet.grid[first_row:], start=first_row + 1):
         raw = row[index] if index < len(row) else None
-        full_text = cell_text(raw)
-        if not full_text:
+        text = cell_text(raw)
+        if not text:
             continue
 
-        full_key = norm_key(full_text)             # duplicate check on the
-        if full_key in seen_full:                   # sheet's own full row text
-            duplicates.append((offset, full_text))
+        key = norm_key(text)
+        if key in seen:
+            duplicates.append((offset, text))
             continue
-        seen_full[full_key] = offset
+        seen[key] = offset
 
-        short = full_text.split("(", 1)[0] if "(" in full_text else full_text
-        short = cell_text(short)                    # trim the extracted value
-        if not short or short in reference.exact:
-            continue
-        reference.values.append(short)
-        reference.exact.add(short)
+        if text not in reference.exact:
+            reference.values.append(text)
+            reference.exact.add(text)
 
     if duplicates:
         issues.append(Issue(

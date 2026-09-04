@@ -96,7 +96,8 @@ def _section_body(section, issues, include_full_lists=False):
             details.append({"heading": heading, "items": shown,
                             "more": len(issue.values) - len(shown)})
         elif issue.code in ("ref_type_invalid", "not_in_reference") and issue.note:
-            details.append({"heading": issue.note, "items": [], "more": 0})
+            details.append({"heading": issue.note, "items": list(issue.note_items),
+                            "more": 0})
 
     if not problems:
         return None
