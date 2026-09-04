@@ -144,3 +144,35 @@ def to_findings_csv(result) -> bytes:
             issue.count, shown, " | ".join(issue.values[:25]),
         ])
     return buffer.getvalue().encode("utf-8-sig")
+
+
+def to_preprocess_summary_csv(result) -> bytes:
+    """One row per sheet, summarising what the cleaner changed."""
+    import csv
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["Sheet", "Rows before", "Rows after", "Blank/placeholder removed",
+                     "Duplicates removed", "Date columns", "Dates reformatted",
+                     "Dates that could not be read"])
+    for s in result.summaries:
+        writer.writerow([
+            s.sheet, s.original_rows, s.remaining_rows,
+            s.removed_blank_or_placeholder, s.removed_duplicates,
+            ", ".join(s.date_columns), s.dates_reformatted, len(s.dates_unparseable),
+        ])
+    return buffer.getvalue().encode("utf-8-sig")
+
+
+def to_unparseable_dates_csv(result) -> bytes:
+    """Every date cell the cleaner left untouched because it could not tell
+    what date it represents — for someone to fix by hand."""
+    import csv
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["Sheet", "Column", "Excel row", "Original value"])
+    for s in result.summaries:
+        for u in s.dates_unparseable:
+            writer.writerow([u.sheet, u.column, u.row, u.value])
+    return buffer.getvalue().encode("utf-8-sig")

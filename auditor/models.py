@@ -81,3 +81,50 @@ class AuditResult:
     @property
     def has_issues(self) -> bool:
         return bool(self.issues)
+
+
+@dataclass
+class UnparseableDate:
+    """A date cell the cleaner left untouched because it could not confidently
+    tell what date it represents."""
+
+    sheet: str
+    column: str
+    row: int
+    value: str
+
+
+@dataclass
+class SheetCleanupSummary:
+    """What the cleaner did to one of the three preprocessed sheets."""
+
+    sheet: str
+    key: str                          # "supplier_ref", "office_ref", "asset_info"
+    original_rows: int = 0
+    remaining_rows: int = 0
+    removed_blank_or_placeholder: int = 0
+    removed_duplicates: int = 0
+    duplicate_examples: list[str] = field(default_factory=list)
+    date_columns: list[str] = field(default_factory=list)
+    dates_reformatted: int = 0
+    dates_unparseable: list[UnparseableDate] = field(default_factory=list)
+    available: bool = True            # False when the sheet was not found
+
+
+@dataclass
+class PreprocessResult:
+    filename: str
+    day_first: bool
+    summaries: list[SheetCleanupSummary] = field(default_factory=list)
+    missing_sheets: list[str] = field(default_factory=list)
+
+    @property
+    def total_unparseable(self) -> int:
+        return sum(len(s.dates_unparseable) for s in self.summaries)
+
+    @property
+    def total_changes(self) -> int:
+        return sum(
+            s.removed_blank_or_placeholder + s.removed_duplicates + s.dates_reformatted
+            for s in self.summaries
+        )
