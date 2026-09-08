@@ -431,6 +431,77 @@ def test_category_short_form_and_code_mismatch_still_detected():
            ("Asset Category Code", "code_category_mismatch") in found, str(found))
 
 
+def test_date_columns_checked_in_feedback():
+    """Any column whose header contains "date", in the Asset | GPE
+    Information, Office or Supplier sheet, is checked for blank entries and
+    for entries that cannot be read as a date -- the same standard the
+    preprocessing cleaner uses to decide what it can safely convert."""
+    book = openpyxl.Workbook()
+    book.remove(book.active)
+
+    asset_headers = ASSET_HEADERS + ["Purchase Date"]
+    sheet = book.create_sheet("Asset | GPE Information")
+    sheet.append([None] * len(asset_headers))
+    sheet.append(asset_headers)
+    sheet.append(GOOD_ROW + ["26/12/2018"])
+    sheet.append(["Laptop", "ZMB-CMP-0002", CATEGORIES[2][0], "CMP", "USD", 900, 900,
+                 "Beta Motors", "Kitwe", CONDITIONS[0], ""])                  # blank date
+    sheet.append(["Chair", "ZMB-CMP-0003", CATEGORIES[2][0], "CMP", "ZMW", 10, 10,
+                 "Beta Motors", "Kitwe", CONDITIONS[0], "not a date"])        # unreadable
+
+    sheet = book.create_sheet("Asset | GPECategory")
+    sheet.append([None] * 3)
+    sheet.append(["Category Name", "Category code", "Assets Type"])
+    for name, code in CATEGORIES:
+        sheet.append([name, code, "Asset"])
+
+    sheet = book.create_sheet("Condition| Disposal Reason")
+    for index in range(max(len(CONDITIONS), len(DISPOSALS), len(OFFICE_TYPES))):
+        sheet.append([
+            CONDITIONS[index] if index < len(CONDITIONS) else None, None, None,
+            DISPOSALS[index] if index < len(DISPOSALS) else None,
+            OFFICE_TYPES[index] if index < len(OFFICE_TYPES) else None,
+        ])
+
+    sheet = book.create_sheet("Supplier")
+    sheet.append(["SupplierName", "Code", "Country", "Status", "ContractDate"])
+    sheet.append(["Alpha Traders", None, "Zambia", "Active", "2020-02-01"])
+    sheet.append(["Beta Motors", None, "Zambia", "Active", ""])               # blank date
+
+    sheet = book.create_sheet("Office")
+    sheet.append(["Region", "Country", "OfficeName", "OfficeType", "DataCollectionDate"])
+    sheet.append(["ESA", "Zambia", "Lusaka", "Country Office", "31/13/2020"])  # unreadable
+    sheet.append(["ESA", "Zambia", "Kitwe", "Field Office", "2019-05-01"])
+
+    buffer = io.BytesIO()
+    book.save(buffer)
+    buffer.seek(0)
+
+    result = audit(buffer, filename="Data Upload Template V3_Testland.xlsx")
+    found = codes(result)
+
+    expect("blank date in Asset | GPE Information reported",
+           ("Asset | GPE Information Dates", "date_blank") in found, str(found))
+    expect("unreadable date in Asset | GPE Information reported",
+           ("Asset | GPE Information Dates", "date_invalid") in found, str(found))
+    expect("blank date in the Supplier sheet reported",
+           ("Supplier Reference Sheet", "date_blank") in found, str(found))
+    expect("unreadable date in the Office sheet reported",
+           ("Office Reference Sheet", "date_invalid") in found, str(found))
+    expect("a valid, unambiguous date in the Supplier sheet is not flagged",
+           not any(i.section == "Supplier Reference Sheet" and i.code == "date_invalid"
+                   for i in result.issues), str(found))
+
+    invalid = next(i for i in result.issues
+                  if i.section == "Office Reference Sheet" and i.code == "date_invalid")
+    expect("the unreadable value is named", "31/13/2020" in invalid.values, str(invalid.values))
+
+    document = build_feedback(result)
+    text = render_text(document)
+    expect("the feedback tells the team how to write an unambiguous date",
+           "unambiguous date" in text, text)
+
+
 def test_country_guessing():
     from auditor.utils import guess_country
     cases = [
@@ -451,7 +522,8 @@ if __name__ == "__main__":
                  test_normalization_handles_invisible_characters,
                  test_missing_vs_formatting_difference_are_distinct,
                  test_condition_must_match_full_dropdown_text_exactly,
-                 test_category_short_form_and_code_mismatch_still_detected]:
+                 test_category_short_form_and_code_mismatch_still_detected,
+                 test_date_columns_checked_in_feedback]:
         print(f"\n{test.__name__}")
         test()
 

@@ -258,6 +258,27 @@ SUPPORT_COLUMNS = {
 
 
 # ---------------------------------------------------------------------------
+# 4b. Date columns
+# ---------------------------------------------------------------------------
+# Every column whose header contains the word "date" is checked -- detected
+# by name at run time (utils.find_date_columns), not a fixed list, so a
+# template with an extra date column is still covered without a code change.
+# This is the same rule the preprocessing cleaner uses to decide which
+# columns to reformat.
+#
+# "section" is where the findings appear in the feedback: the Office and
+# Supplier sheets' date problems join that sheet's other reference-sheet
+# problems, since they are fixed on the same sheet; Asset | GPE Information
+# gets its own section.
+
+DATE_CHECK_SHEETS = [
+    {"sheet": "asset_info", "section": "Asset | GPE Information Dates"},
+    {"sheet": "office_ref", "section": "Office Reference Sheet"},
+    {"sheet": "supplier_ref", "section": "Supplier Reference Sheet"},
+]
+
+
+# ---------------------------------------------------------------------------
 # 5. Section order in the feedback document
 # ---------------------------------------------------------------------------
 # Reference sheets come first: they must be corrected before the columns that
@@ -278,6 +299,7 @@ SECTION_ORDER = [
     "Supplier",
     "Office",
     "Asset | GPE Condition",
+    "Asset | GPE Information Dates",
 ]
 
 
@@ -548,6 +570,35 @@ FEEDBACK_TEXT = {
         "problem": "conditions written differently from the Condition | Disposal Reason sheet",
         "actions": ["Copy the condition exactly as it is written in the Condition | Disposal Reason sheet."],
     },
+
+    # ---- date columns (Asset | GPE Information, Office, Supplier) --------
+    ("Asset | GPE Information Dates", "date_blank"): {
+        "problem": "blank entries in {column}",
+        "actions": ["Enter the correct {column} for every blank entry."],
+    },
+    ("Asset | GPE Information Dates", "date_invalid"): {
+        "problem": "entries in {column} that cannot be read as a date, such as {examples}",
+        "actions": ["Enter {column} as an unambiguous date (for example 2020-02-01, "
+                    "or 26/12/2018 with a full 4-digit year), not text such as {examples}."],
+    },
+    ("Office Reference Sheet", "date_blank"): {
+        "problem": "blank entries in {column}",
+        "actions": ["Enter the correct {column} for every office."],
+    },
+    ("Office Reference Sheet", "date_invalid"): {
+        "problem": "entries in {column} that cannot be read as a date, such as {examples}",
+        "actions": ["Enter {column} as an unambiguous date (for example 2020-02-01, "
+                    "or 26/12/2018 with a full 4-digit year), not text such as {examples}."],
+    },
+    ("Supplier Reference Sheet", "date_blank"): {
+        "problem": "blank entries in {column}",
+        "actions": ["Enter the correct {column} for every supplier."],
+    },
+    ("Supplier Reference Sheet", "date_invalid"): {
+        "problem": "entries in {column} that cannot be read as a date, such as {examples}",
+        "actions": ["Enter {column} as an unambiguous date (for example 2020-02-01, "
+                    "or 26/12/2018 with a full 4-digit year), not text such as {examples}."],
+    },
 }
 
 # Fallback wording when a (section, code) pair has no entry above.
@@ -562,5 +613,6 @@ SECTION_INTRO = {
     "Office Reference Sheet": "The Office sheet has {problems}.",
     "Asset | GPE Category Reference Sheet": "The Asset | GPE Category sheet has {problems}.",
     "Condition | Disposal Reason Reference Sheet": "The Condition | Disposal Reason sheet has {problems}.",
+    "Asset | GPE Information Dates": "The Asset | GPE Information sheet has {problems}.",
 }
 DEFAULT_SECTION_INTRO = "The {section} column in the Asset | GPE Information sheet has {problems}."

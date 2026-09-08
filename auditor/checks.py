@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .dates import parse_date
 from .models import Issue, ReferenceList
 from .utils import cell_text, is_blank, is_error_value, is_placeholder, is_zero, norm_key, to_number
 
@@ -235,6 +236,56 @@ def check_usd_matches_invoice(ctx):
         return []
     return [_issue(ctx, "usd_mismatch",
                    "Item Value USD does not match the USD invoice value", rows)]
+
+
+# ---------------------------------------------------------------------------
+# Date columns (Asset | GPE Information, Office and Supplier sheets)
+# ---------------------------------------------------------------------------
+# Unlike the checks above, this one is not driven by a FIELD_RULES entry: the
+# columns it applies to are found dynamically, by header name, in three
+# different sheets (see config.DATE_CHECK_SHEETS and utils.find_date_columns),
+# the same way the preprocessing cleaner finds them. It is called directly
+# from the engine, once per date column found, rather than through CHECKS.
+
+def check_date_values(sheet, column, section) -> list[Issue]:
+    """A date column must contain either nothing, or a value that can be
+    read as a real date with real confidence (see dates.parse_date) -- the
+    same standard the preprocessing cleaner uses to decide what it can
+    safely convert.
+
+    The audit does not know whether this workbook writes day-first or
+    month-first dates (that choice is only made when preparing the file for
+    migration), so a value is accepted here when it can be read under
+    *either* convention. Only a value that cannot be read as a date under
+    either convention is reported.
+    """
+    blank_rows = []
+    invalid_rows, invalid_values = [], []
+    for row_number, value in sheet.column_values(column):
+        if is_blank(value):
+            blank_rows.append(row_number)
+            continue
+        if parse_date(value, day_first=True) is None and parse_date(value, day_first=False) is None:
+            invalid_rows.append(row_number)
+            invalid_values.append(value)
+
+    issues = []
+    if blank_rows:
+        issues.append(Issue(
+            section=section, code="date_blank",
+            title=f"Blank {column}",
+            sheet=sheet.name, column=column,
+            count=len(blank_rows), rows=blank_rows,
+        ))
+    if invalid_rows:
+        issues.append(Issue(
+            section=section, code="date_invalid",
+            title=f"{column} values that cannot be read as a date",
+            sheet=sheet.name, column=column,
+            count=len(invalid_rows), rows=invalid_rows,
+            values=[cell_text(v) for v in invalid_values],
+        ))
+    return issues
 
 
 CHECKS = {

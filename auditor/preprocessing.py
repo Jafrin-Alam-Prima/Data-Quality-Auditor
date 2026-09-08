@@ -6,7 +6,7 @@ Office, and Asset | GPE Information. Every other sheet in the workbook
 What each sheet gets:
     Supplier                 remove blank/placeholder Supplier Names,
                               remove duplicate Supplier Names (keep the
-                              most complete row)
+                              most complete row), reformat every date column
     Office                   remove duplicate Office Names (keep the most
                               complete row), reformat every date column
     Asset | GPE Information  reformat every date column
@@ -17,7 +17,10 @@ is still handled without a code change.
 
 A date is only ever converted when it can be read with real confidence
 (see dates.py). Anything else is left exactly as it was and reported
-separately — nothing is silently guessed for a migration.
+separately — nothing is silently guessed for a migration. The one
+exception is a blank date cell, which is filled with the agreed placeholder
+date (dates.BLANK_DATE_FILL, 1900-01-01) rather than left empty, since the
+migration target needs a real date in every cell of a date column.
 """
 
 from __future__ import annotations
@@ -27,9 +30,9 @@ import datetime as _dt
 import openpyxl
 
 from .config import REFERENCE_COLUMNS
-from .dates import TARGET_NUMBER_FORMAT, parse_date
+from .dates import BLANK_DATE_FILL, TARGET_NUMBER_FORMAT, parse_date
 from .models import PreprocessResult, SheetCleanupSummary, UnparseableDate
-from .utils import cell_text, is_blank, is_placeholder, normalize_for_matching, reduce_name
+from .utils import cell_text, find_date_columns, is_blank, is_placeholder, normalize_for_matching
 from .workbook import build_sheet, detect_sheets
 
 PROGRESS_STEPS = [
@@ -39,10 +42,6 @@ PROGRESS_STEPS = [
     "Cleaning Asset | GPE Information sheet",
     "Preparing the cleaned file",
 ]
-
-
-def _find_date_columns(columns: list[str]) -> list[str]:
-    return [c for c in columns if "date" in reduce_name(c)]
 
 
 def _filled_count(row: dict, columns: list[str]) -> int:
@@ -75,13 +74,23 @@ def _dedupe_keep_most_complete(rows, key_label: str, columns: list[str]):
 
 
 def _reformat_dates(rows, date_labels: list[str], day_first: bool, sheet_name: str):
-    """Reformat every date column in place on the (row_number, data) tuples."""
+    """Reformat every date column in place on the (row_number, data) tuples.
+
+    A blank date cell is filled with the agreed placeholder date
+    (dates.BLANK_DATE_FILL, 1900-01-01) -- the migration target needs a real
+    date in every cell of a date column. A value that is present but cannot
+    be read with confidence is left exactly as it was and reported
+    separately, same as always: nothing is guessed for a migration.
+    """
     reformatted = 0
+    filled_blank = 0
     unparseable: list[UnparseableDate] = []
     for row_number, data in rows:
         for label in date_labels:
             raw = data.get(label)
             if raw is None or cell_text(raw) == "":
+                data[label] = BLANK_DATE_FILL
+                filled_blank += 1
                 continue
             parsed = parse_date(raw, day_first)
             if parsed is None:
@@ -91,7 +100,7 @@ def _reformat_dates(rows, date_labels: list[str], day_first: bool, sheet_name: s
                 continue
             data[label] = parsed
             reformatted += 1
-    return reformatted, unparseable
+    return reformatted, filled_blank, unparseable
 
 
 def _write_rows(worksheet, header_row: int, columns: list[str], rows: list[dict],
@@ -110,7 +119,7 @@ def _write_rows(worksheet, header_row: int, columns: list[str], rows: list[dict]
                 cell.number_format = TARGET_NUMBER_FORMAT
 
 
-def _clean_supplier(book, resolved: dict, result: PreprocessResult) -> None:
+def _clean_supplier(book, resolved: dict, result: PreprocessResult, day_first: bool) -> None:
     sheet_name = resolved.get("supplier_ref")
     if not sheet_name:
         result.missing_sheets.append("Supplier")
@@ -120,6 +129,9 @@ def _clean_supplier(book, resolved: dict, result: PreprocessResult) -> None:
     sheet = build_sheet(worksheet)
     summary = SheetCleanupSummary(sheet=sheet_name, key="supplier_ref",
                                   original_rows=len(sheet.rows))
+
+    date_labels = find_date_columns(sheet.columns)
+    summary.date_columns = date_labels
 
     name_label = sheet.find_column(REFERENCE_COLUMNS["supplier_ref"]["name"])
     if not name_label:
@@ -136,9 +148,15 @@ def _clean_supplier(book, resolved: dict, result: PreprocessResult) -> None:
     kept = [(n, r) for n, r in kept if id(r) not in drop_ids]
     summary.removed_duplicates = removed
     summary.duplicate_examples = examples
+
+    reformatted, filled_blank, unparseable = _reformat_dates(kept, date_labels, day_first, sheet_name)
+    summary.dates_reformatted = reformatted
+    summary.dates_filled_blank = filled_blank
+    summary.dates_unparseable = unparseable
     summary.remaining_rows = len(kept)
 
-    _write_rows(worksheet, sheet.header_row, sheet.columns, [r for _, r in kept], date_columns=set())
+    _write_rows(worksheet, sheet.header_row, sheet.columns, [r for _, r in kept],
+               date_columns=set(date_labels))
     result.summaries.append(summary)
 
 
@@ -153,7 +171,7 @@ def _clean_office(book, resolved: dict, result: PreprocessResult, day_first: boo
     summary = SheetCleanupSummary(sheet=sheet_name, key="office_ref",
                                   original_rows=len(sheet.rows))
 
-    date_labels = _find_date_columns(sheet.columns)
+    date_labels = find_date_columns(sheet.columns)
     summary.date_columns = date_labels
 
     rows = list(zip(sheet.row_numbers, sheet.rows))
@@ -167,8 +185,9 @@ def _clean_office(book, resolved: dict, result: PreprocessResult, day_first: boo
         summary.removed_duplicates = removed
         summary.duplicate_examples = examples
 
-    reformatted, unparseable = _reformat_dates(rows, date_labels, day_first, sheet_name)
+    reformatted, filled_blank, unparseable = _reformat_dates(rows, date_labels, day_first, sheet_name)
     summary.dates_reformatted = reformatted
+    summary.dates_filled_blank = filled_blank
     summary.dates_unparseable = unparseable
     summary.remaining_rows = len(rows)
 
@@ -188,12 +207,13 @@ def _clean_asset_info(book, resolved: dict, result: PreprocessResult, day_first:
     summary = SheetCleanupSummary(sheet=sheet_name, key="asset_info",
                                   original_rows=len(sheet.rows))
 
-    date_labels = _find_date_columns(sheet.columns)
+    date_labels = find_date_columns(sheet.columns)
     summary.date_columns = date_labels
 
     rows = list(zip(sheet.row_numbers, sheet.rows))
-    reformatted, unparseable = _reformat_dates(rows, date_labels, day_first, sheet_name)
+    reformatted, filled_blank, unparseable = _reformat_dates(rows, date_labels, day_first, sheet_name)
     summary.dates_reformatted = reformatted
+    summary.dates_filled_blank = filled_blank
     summary.dates_unparseable = unparseable
     summary.remaining_rows = len(rows)
 
@@ -221,7 +241,7 @@ def clean_workbook(source, day_first: bool, filename: str = "", progress=None):
     result = PreprocessResult(filename=filename, day_first=day_first)
 
     step("Cleaning Supplier sheet")
-    _clean_supplier(book, resolved, result)
+    _clean_supplier(book, resolved, result, day_first)
 
     step("Cleaning Office sheet")
     _clean_office(book, resolved, result, day_first)

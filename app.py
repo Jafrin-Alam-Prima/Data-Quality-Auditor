@@ -449,7 +449,7 @@ with preprocess_tab:
                         continue
 
                     changed = (summary.removed_blank_or_placeholder or summary.removed_duplicates
-                              or summary.dates_reformatted)
+                              or summary.dates_reformatted or summary.dates_filled_blank)
                     pill = (f'<span class="pill pill-ok">Cleaned</span>' if changed
                            else '<span class="pill pill-ok">Already clean</span>')
                     st.markdown(f'<div class="card-title">{label} &nbsp;{pill}</div>',
@@ -472,6 +472,9 @@ with preprocess_tab:
                         lines.append(f"• Date columns: {', '.join(summary.date_columns)}")
                     if summary.dates_reformatted:
                         lines.append(f"• Reformatted {summary.dates_reformatted:,} dates")
+                    if summary.dates_filled_blank:
+                        lines.append(f"• Filled {summary.dates_filled_blank:,} blank date "
+                                    f"cell(s) with the placeholder date (1900-01-01)")
                     if summary.dates_unparseable:
                         lines.append(f"• {len(summary.dates_unparseable):,} date cells could "
                                     f"not be confidently read and were left unchanged")

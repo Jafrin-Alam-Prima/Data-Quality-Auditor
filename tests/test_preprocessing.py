@@ -31,7 +31,8 @@ def expect(name, condition, extra=""):
 
 
 def build_workbook(supplier_rows=None, office_rows=None, asset_rows=None,
-                   include_instructions=True, skip_supplier=False, skip_office=False):
+                   include_instructions=True, skip_supplier=False, skip_office=False,
+                   supplier_headers=None):
     book = openpyxl.Workbook()
     book.remove(book.active)
 
@@ -42,7 +43,7 @@ def build_workbook(supplier_rows=None, office_rows=None, asset_rows=None,
 
     if not skip_supplier:
         sheet = book.create_sheet("Supplier")
-        sheet.append(["SupplierName", "Code", "Country", "Region", "Email", "Status"])
+        sheet.append(supplier_headers or ["SupplierName", "Code", "Country", "Region", "Email", "Status"])
         for row in (supplier_rows or []):
             sheet.append(row)
 
@@ -152,15 +153,16 @@ def test_asset_info_dates_reformatted_and_unparseable_reported():
     result, book = clean_and_reopen(asset_rows=[
         ["Chair", "A1", "26/12/2018", "01/01/2022", _dt.datetime(2020, 3, 4), "Alpha"],
         ["Desk", "A2", "11", "2021-07-15", "not a date", "Alpha"],   # bad Purchase Date
-        ["Lamp", "A3", "", "", "", "Alpha"],                        # blank dates: not reported
+        ["Lamp", "A3", "", "", "", "Alpha"],                        # blank dates: filled in
     ])
     s = summary(result, "asset_info")
     expect("all three date columns detected",
            set(s.date_columns) == {"Purchase Date", "Warranty End Date", "Assigned Date"},
            str(s.date_columns))
-    expect("5 real dates reformatted (row1 x3, row2's ISO Warranty End Date, "
-           "blank cells don't count)",
+    expect("4 real dates reformatted (row1 x3, row2's ISO Warranty End Date)",
            s.dates_reformatted == 4, str(s))
+    expect("3 blank dates filled with the placeholder date (Lamp row x3)",
+           s.dates_filled_blank == 3, str(s))
     expect("exactly 2 unparseable dates reported (bare '11', 'not a date')",
            len(s.dates_unparseable) == 2, str(s.dates_unparseable))
     bad_values = {u.value for u in s.dates_unparseable}
@@ -178,6 +180,35 @@ def test_asset_info_dates_reformatted_and_unparseable_reported():
            row2[2] == "11", str(row2))
     expect("row 2's valid ISO Warranty End Date was still reformatted",
            row2[3] == _dt.datetime(2021, 7, 15), str(row2))
+    lamp = rows[2]
+    expect("Lamp's blank Purchase, Warranty End and Assigned dates were all "
+           "filled with the placeholder date 1900-01-01",
+           lamp[2] == _dt.datetime(1900, 1, 1) and lamp[3] == _dt.datetime(1900, 1, 1)
+           and lamp[4] == _dt.datetime(1900, 1, 1), str(lamp))
+
+
+def test_supplier_dates_reformatted_and_blanks_filled():
+    result, book = clean_and_reopen(
+        supplier_headers=["SupplierName", "Code", "Country", "Region", "Email", "ContractDate"],
+        supplier_rows=[
+            ["Alpha Traders", "S1", "Zambia", "Lusaka", "a@x.com", "26/12/2018"],
+            ["Beta Motors", "S2", "Zambia", "Ndola", "b@x.com", ""],
+        ],
+    )
+    s = summary(result, "supplier_ref")
+    expect("the ContractDate column is detected as a date column",
+           s.date_columns == ["ContractDate"], str(s.date_columns))
+    expect("one real date reformatted", s.dates_reformatted == 1, str(s))
+    expect("one blank date filled with the placeholder", s.dates_filled_blank == 1, str(s))
+
+    rows = [tuple(c.value for c in row) for row in book["Supplier"].iter_rows(min_row=2)
+           if row[0].value]
+    alpha = next(r for r in rows if r[0] == "Alpha Traders")
+    beta = next(r for r in rows if r[0] == "Beta Motors")
+    expect("Alpha's real contract date was reformatted",
+           alpha[5] == _dt.datetime(2018, 12, 26), str(alpha))
+    expect("Beta's blank contract date was filled with the placeholder 1900-01-01",
+           beta[5] == _dt.datetime(1900, 1, 1), str(beta))
 
 
 def test_day_first_vs_month_first():
@@ -258,6 +289,7 @@ if __name__ == "__main__":
                 test_supplier_duplicate_keeps_most_complete,
                 test_office_duplicate_and_blank_name_and_date,
                 test_asset_info_dates_reformatted_and_unparseable_reported,
+                test_supplier_dates_reformatted_and_blanks_filled,
                 test_day_first_vs_month_first,
                 test_other_sheets_are_never_touched,
                 test_missing_sheet_is_reported_but_others_still_run,

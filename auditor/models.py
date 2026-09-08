@@ -107,6 +107,7 @@ class SheetCleanupSummary:
     duplicate_examples: list[str] = field(default_factory=list)
     date_columns: list[str] = field(default_factory=list)
     dates_reformatted: int = 0
+    dates_filled_blank: int = 0       # blank date cells set to the placeholder date
     dates_unparseable: list[UnparseableDate] = field(default_factory=list)
     available: bool = True            # False when the sheet was not found
 
@@ -125,6 +126,7 @@ class PreprocessResult:
     @property
     def total_changes(self) -> int:
         return sum(
-            s.removed_blank_or_placeholder + s.removed_duplicates + s.dates_reformatted
+            s.removed_blank_or_placeholder + s.removed_duplicates
+            + s.dates_reformatted + s.dates_filled_blank
             for s in self.summaries
         )

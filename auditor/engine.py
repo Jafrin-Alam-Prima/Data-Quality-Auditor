@@ -8,8 +8,8 @@ callback so the interface can show what it is doing.
 
 from __future__ import annotations
 
-from .checks import CHECKS, FieldContext
-from .config import FIELD_RULES, SUPPORT_COLUMNS
+from .checks import CHECKS, FieldContext, check_date_values
+from .config import DATE_CHECK_SHEETS, FIELD_RULES, SUPPORT_COLUMNS
 from .models import AuditResult, Issue
 from .references import (
     build_category_reference,
@@ -18,12 +18,13 @@ from .references import (
     build_supplier_reference,
     office_countries,
 )
-from .utils import guess_country
+from .utils import find_date_columns, guess_country
 from .workbook import load_workbook, sheet_overview
 
 PROGRESS_STEPS = [
     "Reading workbook",
     "Checking reference sheets",
+    "Checking date columns",
     "Checking Asset | GPE Information",
     "Cross-checking Supplier",
     "Cross-checking Office",
@@ -81,6 +82,19 @@ def audit(source, filename: str = "", country: str = "", progress=None) -> Audit
 
     if not result.country:
         result.country = guess_country(book.filename, office_countries(book))
+
+    # ---- date columns, wherever they appear -------------------------------
+    # Any column whose header contains "date", in the Asset | GPE Information,
+    # Office or Supplier sheet, must be blank or a value the preprocessing
+    # cleaner could confidently convert -- checked here so the data-entry
+    # team can fix it before the file is migrated.
+    step("Checking date columns")
+    for entry in DATE_CHECK_SHEETS:
+        date_sheet = book.get(entry["sheet"])
+        if date_sheet is None or not date_sheet.rows:
+            continue
+        for column in find_date_columns(date_sheet.columns):
+            issues.extend(check_date_values(date_sheet, column, entry["section"]))
 
     # ---- the Asset | GPE Information sheet -------------------------------
     asset_sheet = book.get("asset_info")

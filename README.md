@@ -84,6 +84,17 @@ list. This sheet is the source of truth for valid conditions.
 | Office | blank, `0`, placeholder, not in the Office sheet, spelling differences |
 | Asset \| GPE Condition | blank, placeholder, not a valid option in the Condition sheet |
 
+**Date columns** — any column whose header contains the word "date", in the
+Asset | GPE Information, Office **or** Supplier sheet, is checked for blank
+entries and for entries that cannot be confidently read as a date (see "How
+dates are read" below — the same standard the Preprocess tab uses to decide
+what it can safely convert). Office and Supplier date problems are reported
+alongside that sheet's other reference-sheet problems, since they are fixed
+on the same sheet; Asset | GPE Information gets its own "Dates" section. The
+Audit tab only reads and reports — it does not know whether the workbook
+writes day-first or month-first dates, so a value is accepted here when it
+can be read under either convention.
+
 Duplicate Asset **Names** are allowed and are not reported.
 
 A cell is only reported once: a blank cell is not also reported as "not in the
@@ -150,7 +161,8 @@ Check, Dispose, ...) is copied through completely untouched.
 (`N/A`, `UNKNOWN`, `0`, ...), then removes duplicate Supplier Names. When a
 name is repeated, the row with the fewest blank cells across its other
 columns (Code, Country, Region, Email, ...) is kept and the rest are dropped
--- so a sparse duplicate entry doesn't win over a fully filled-in one.
+-- so a sparse duplicate entry doesn't win over a fully filled-in one. Every
+date column is reformatted.
 
 **Office** -- removes duplicate Office Names the same way (most complete row
 wins). A blank Office Name is left exactly where it is -- it isn't a
@@ -171,8 +183,17 @@ real date and written in the format the workbook's own Instructions sheet
 asks for (`YYYY-MM-DD 00:00:00.000`). Anything else -- a stray number, a
 two-digit year, a typo, a genuinely corrupted leftover value like a bare
 `11` -- is **left exactly as it was** and listed separately in the results
-and in a downloadable CSV, rather than guessed. Nothing is silently
-fabricated for a data migration.
+and in a downloadable CSV, rather than guessed.
+
+**A blank date cell is the one exception: it is filled with the agreed
+placeholder date, `1900-01-01 00:00:00`,** rather than left empty, because
+the migration target needs a real date in every cell of a date column. This
+is a documented, constant stand-in — never a guess at the real date — and is
+only ever applied to a cell that is genuinely empty; a cell that holds a
+value the cleaner cannot read with confidence is still left exactly as it
+was and reported separately, same as always. How many blanks were filled is
+shown in the results and in the downloadable summary CSV, so it stays
+visible rather than silent.
 
 Because day/month/year dates are ambiguous (`01/02/2020` could be 1 February
 or 2 January), you choose day-first or month-first before cleaning. An
@@ -226,6 +247,7 @@ Open `auditor/config.py`.
 | Change the order of the feedback sections | `SECTION_ORDER` |
 | Reword any sentence or bullet | `FEEDBACK_TEXT` |
 | Change how many missing values are listed | `MAX_LISTED_VALUES` |
+| Check date columns on another sheet | `DATE_CHECK_SHEETS` |
 
 A rule looks like this:
 

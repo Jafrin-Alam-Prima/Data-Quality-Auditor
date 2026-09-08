@@ -79,9 +79,9 @@ def _section_body(section, issues, include_full_lists=False):
         examples = quote_list(issue.values, EXAMPLES_IN_TEXT)
         if "{examples}" in text["problem"] and not examples:
             continue
-        problems.append(text["problem"].format(examples=examples))
+        problems.append(text["problem"].format(examples=examples, column=issue.column))
         for action in text["actions"]:
-            filled = action.format(examples=examples)
+            filled = action.format(examples=examples, column=issue.column)
             if filled not in actions:
                 actions.append(filled)
 

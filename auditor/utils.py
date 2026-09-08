@@ -96,6 +96,16 @@ def reduce_name(value) -> str:
     return _NON_ALNUM_RE.sub("", cell_text(value).casefold())
 
 
+def find_date_columns(columns) -> list[str]:
+    """Every column whose header contains the word "date" -- detected by
+    name at run time, not a fixed list, so a template with an extra date
+    column is still handled without a code change. Shared by the audit
+    (checks.py) and the preprocessing cleaner (preprocessing.py), so both
+    agree on exactly which columns count as a date column.
+    """
+    return [c for c in columns if "date" in reduce_name(c)]
+
+
 def is_blank(value) -> bool:
     return cell_text(value) == ""
 

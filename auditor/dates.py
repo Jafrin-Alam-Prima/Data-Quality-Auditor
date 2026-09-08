@@ -20,6 +20,14 @@ from .utils import cell_text
 #   "YYYY-MM-DD 00:00:00.000"
 TARGET_NUMBER_FORMAT = "yyyy-mm-dd hh:mm:ss.000"
 
+# The agreed placeholder for a date cell that was left blank -- used only by
+# the preprocessing cleaner, which must write a real date into every cell of
+# a date column for the migration target. This is a documented, constant
+# stand-in, not a guess at the real date, so it is applied only to cells that
+# are genuinely empty; a cell that has a value the cleaner cannot read is
+# still left exactly as it was and reported (see parse_date() below).
+BLANK_DATE_FILL = _dt.datetime(1900, 1, 1)
+
 _SLASH_DATE_RE = re.compile(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$")
 _ISO_DATE_RE = re.compile(
     r"^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$"

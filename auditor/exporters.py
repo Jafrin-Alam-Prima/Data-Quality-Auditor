@@ -154,12 +154,13 @@ def to_preprocess_summary_csv(result) -> bytes:
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(["Sheet", "Rows before", "Rows after", "Blank/placeholder removed",
                      "Duplicates removed", "Date columns", "Dates reformatted",
-                     "Dates that could not be read"])
+                     "Blank dates filled with 1900-01-01", "Dates that could not be read"])
     for s in result.summaries:
         writer.writerow([
             s.sheet, s.original_rows, s.remaining_rows,
             s.removed_blank_or_placeholder, s.removed_duplicates,
-            ", ".join(s.date_columns), s.dates_reformatted, len(s.dates_unparseable),
+            ", ".join(s.date_columns), s.dates_reformatted,
+            s.dates_filled_blank, len(s.dates_unparseable),
         ])
     return buffer.getvalue().encode("utf-8-sig")
 
